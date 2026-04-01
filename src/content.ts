@@ -187,7 +187,7 @@ export const projects = [
     title: 'Machine Learning Project 2026',
     slug: 'machine-learning-project-2026',
     shortDesc: 'A machine learning project, undertaken in a team of 5 over the course of 20 weeks.',
-    description: 'As part of my python module, my team and I undertook a machine learning project overl the course of 20 weeks. We used and compared different models in different applications (from breast cancer cells to hexapawn).',
+    description: 'As part of my python module, my team and I undertook a machine learning project over the course of 20 weeks. We used and compared different models in different applications (from breast cancer cells to hexapawn).',
     techStack: ['Python', 'Teamwork', 'Maths', 'Presenting'],
     category: 'Written',
     githubUrl: '',
