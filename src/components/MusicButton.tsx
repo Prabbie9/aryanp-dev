@@ -41,33 +41,32 @@ export default function MusicButton() {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
-  const playerIdRef = useRef<string>('');
+  
+  // Store the actual player instance directly
+  const playerRef = useRef<any>(null);
+  const playerReady = useRef(false);
 
   const song = musicPlaylist[currentIndex];
   const videoId = song ? extractVideoId(song.url) : null;
 
-  // Always get the freshest player reference by ID
-  const getPlayer = () => {
-    if (playerIdRef.current && window.YT?.get) {
-      return window.YT.get(playerIdRef.current);
-    }
-    return null;
-  };
+  const getPlayer = () => playerRef.current;
 
   const startProgress = useCallback(() => {
     if (progressInterval.current) clearInterval(progressInterval.current);
     progressInterval.current = setInterval(() => {
       const p = getPlayer();
-      if (!p) return;
-      const t = p.getCurrentTime?.() ?? 0;
-      const d = p.getDuration?.() ?? 0;
+      if (!p || typeof p.getCurrentTime !== 'function') return;
+      const t = p.getCurrentTime() ?? 0;
+      const d = p.getDuration() ?? 0;
       if (d > 0) { setProgress(t / d); setDuration(d); }
     }, 500);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const stopProgress = useCallback(() => {
-    if (progressInterval.current) clearInterval(progressInterval.current);
+    if (progressInterval.current) {
+      clearInterval(progressInterval.current);
+      progressInterval.current = null;
+    }
   }, []);
 
   const goNext = useCallback(() => {
@@ -77,8 +76,9 @@ export default function MusicButton() {
   // Create player once on mount
   useEffect(() => {
     const initPlayer = () => {
-      if (!containerRef.current) return;
-      const player = new window.YT.Player(containerRef.current, {
+      if (!containerRef.current || playerRef.current) return;
+      
+      playerRef.current = new window.YT.Player(containerRef.current, {
         videoId: videoId ?? '',
         playerVars: {
           autoplay: 0,
@@ -90,15 +90,22 @@ export default function MusicButton() {
         },
         events: {
           onReady: (e: any) => {
-            // Store the iframe ID so we can always look up the player
-            playerIdRef.current = e.target.getIframe().id;
+            playerReady.current = true;
             e.target.setVolume(80);
           },
           onStateChange: (e: any) => {
-            if (e.data === 1) { setIsPlaying(true); startProgress(); }
-            else if (e.data === 2) { setIsPlaying(false); stopProgress(); }
-            else if (e.data === 0) { setIsPlaying(false); stopProgress(); goNext(); }
+            if (e.data === window.YT.PlayerState.PLAYING) { setIsPlaying(true); startProgress(); }
+            else if (e.data === window.YT.PlayerState.PAUSED) { setIsPlaying(false); stopProgress(); }
+            else if (e.data === window.YT.PlayerState.ENDED) { setIsPlaying(false); stopProgress(); goNext(); }
           },
+          onError: (e: any) => {
+            console.error("YouTube Player Error Code:", e.data);
+            if (e.data === 101 || e.data === 150) {
+              console.warn(`The video "${song?.title}" restricts embedded playback. Please use a non-copyrighted track.`);
+              setIsPlaying(false);
+              stopProgress();
+            }
+          }
         },
       });
     };
@@ -114,23 +121,33 @@ export default function MusicButton() {
       }
     }
 
-    return () => stopProgress();
+    return () => {
+      stopProgress();
+      if (playerRef.current && typeof playerRef.current.destroy === 'function') {
+        playerRef.current.destroy();
+        playerRef.current = null;
+        playerReady.current = false;
+      }
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load new video when song changes
   useEffect(() => {
     const p = getPlayer();
-    if (!p || !videoId) return;
-    p.loadVideoById(videoId);
-    setProgress(0);
-    setDuration(0);
+    if (!p || !videoId || !playerReady.current) return;
+    
+    if (typeof p.loadVideoById === 'function') {
+      p.loadVideoById(videoId);
+      setProgress(0);
+      setDuration(0);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex, videoId]);
 
   const togglePlay = () => {
     const p = getPlayer();
-    if (!p) return;
+    if (!p || !playerReady.current || typeof p.playVideo !== 'function') return;
     if (isPlaying) p.pauseVideo();
     else p.playVideo();
   };
@@ -139,11 +156,13 @@ export default function MusicButton() {
 
   const seek = (e: React.MouseEvent<HTMLDivElement>) => {
     const p = getPlayer();
-    if (!p || duration === 0) return;
+    if (!p || !playerReady.current || duration === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    p.seekTo(ratio * duration, true);
-    setProgress(ratio);
+    if (typeof p.seekTo === 'function') {
+      p.seekTo(ratio * duration, true);
+      setProgress(ratio);
+    }
   };
 
   const changeVolume = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -152,12 +171,12 @@ export default function MusicButton() {
     const v = Math.round(Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * 100);
     setVolume(v);
     setMuted(false);
-    if (p) { p.unMute(); p.setVolume(v); }
+    if (p && playerReady.current && typeof p.unMute === 'function') { p.unMute(); p.setVolume(v); }
   };
 
   const toggleMute = () => {
     const p = getPlayer();
-    if (!p) return;
+    if (!p || !playerReady.current) return;
     if (muted) { p.unMute(); p.setVolume(volume); }
     else p.mute();
     setMuted(!muted);
@@ -167,7 +186,7 @@ export default function MusicButton() {
 
   return (
     <>
-      {/* Hidden YT player — always in DOM */}
+      {/* Hidden YT player */}
       <div
         aria-hidden="true"
         style={{ position: 'fixed', width: 1, height: 1, opacity: 0, pointerEvents: 'none', bottom: 0, left: 0, zIndex: -1 }}
@@ -183,7 +202,7 @@ export default function MusicButton() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 40 }}
             transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed inset-0 z-[200] flex flex-col"
+            className="fixed inset-0 z-50 flex flex-col"
             style={{ background: 'var(--bg)' }}
           >
             {/* Header */}
@@ -192,7 +211,7 @@ export default function MusicButton() {
                 className="text-xs tracking-widest uppercase"
                 style={{ color: 'var(--text-subtle)', fontFamily: 'var(--font-mono)' }}
               >
-                Aryan's Playlist
+                Aryan&apos;s Playlist
               </span>
             </div>
 
@@ -201,14 +220,13 @@ export default function MusicButton() {
 
               {/* Left — now playing */}
               <div className="flex flex-col items-center justify-center gap-8 px-8 py-6 md:w-[55%]">
-
                 {/* Art */}
                 <motion.div
                   key={currentIndex}
                   initial={{ scale: 0.88, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                  className="w-56 h-56 md:w-72 md:h-72 rounded-3xl flex items-center justify-center"
+                  className="w-56 h-56 md:w-72 md:h-72 rounded-3xl flex items-center justify-center overflow-hidden"
                   style={{
                     background: 'var(--bg-card)',
                     border: '1px solid var(--border)',
@@ -333,7 +351,7 @@ export default function MusicButton() {
               </div>
             </div>
 
-            {/* Close button — bottom right */}
+            {/* Close button */}
             <button
               onClick={() => setOpen(false)}
               className="fixed bottom-8 right-8 flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all hover:opacity-70"
@@ -360,7 +378,7 @@ export default function MusicButton() {
           transition={{ delay: 1, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
           whileHover={{ scale: 1.08 }}
           whileTap={{ scale: 0.95 }}
-          className="fixed bottom-6 right-6 z-[100] flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-2xl"
+          className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-2xl"
           style={{
             background: 'var(--bg-card)',
             border: '1px solid var(--border)',

@@ -370,4 +370,11 @@ export const musicPlaylist = [
     thumbnail: '', // optional: paste a thumbnail image URL
   },
   // add as many as you want
+  {
+    title: 'Lofi Study Beats',
+    artist: 'Lofi Girl',
+    url: 'https://www.youtube.com/watch?v=jfKfPfyJRdk', // Lofi Girl Stream (Usually allows embeds)
+    thumbnail: 'https://img.youtube.com/vi/jfKfPfyJRdk/maxresdefault.jpg', 
+  },
 ];
+
