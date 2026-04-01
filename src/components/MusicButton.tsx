@@ -30,9 +30,6 @@ const fmt = (s: number) => {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 };
 
-// Stable unique ID for the player container so YouTube can always find it
-const PLAYER_CONTAINER_ID = 'yt-music-player';
-
 export default function MusicButton() {
   const [open, setOpen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -41,31 +38,14 @@ export default function MusicButton() {
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(80);
   const [muted, setMuted] = useState(false);
-  const [playerLoaded, setPlayerLoaded] = useState(false);
 
-  const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  // ── Refs ──
   const playerRef = useRef<any>(null);
-  const playerReady = useRef(false);
-  // Track whether we've already started initialization to avoid double-init
-  const initStarted = useRef(false);
+  const playerContainerRef = useRef<HTMLDivElement>(null);
+  const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const song = musicPlaylist[currentIndex];
   const videoId = song ? extractVideoId(song.url) : null;
-
-  const startProgress = useCallback(() => {
-    if (progressInterval.current) clearInterval(progressInterval.current);
-    progressInterval.current = setInterval(() => {
-      const p = playerRef.current;
-      if (!p || typeof p.getCurrentTime !== 'function') return;
-      try {
-        const t = p.getCurrentTime() ?? 0;
-        const d = p.getDuration() ?? 0;
-        if (d > 0) { setProgress(t / d); setDuration(d); }
-      } catch {
-        // Player may have been destroyed
-      }
-    }, 500);
-  }, []);
 
   const stopProgress = useCallback(() => {
     if (progressInterval.current) {
@@ -74,61 +54,66 @@ export default function MusicButton() {
     }
   }, []);
 
+  const startProgress = useCallback(() => {
+    stopProgress();
+    progressInterval.current = setInterval(() => {
+      const p = playerRef.current;
+      if (!p || typeof p.getCurrentTime !== 'function') return;
+      try {
+        const t = p.getCurrentTime() ?? 0;
+        const d = p.getDuration() ?? 0;
+        if (d > 0) { setProgress(t / d); setDuration(d); }
+      } catch { /* destroyed */ }
+    }, 500);
+  }, [stopProgress]);
+
   const goNext = useCallback(() => {
     setCurrentIndex(i => (i + 1) % musicPlaylist.length);
   }, []);
 
-  // ── Load YouTube IFrame API & create player ──────────────────
+  // ────────────────────────────────────────────────────────────────
+  //  CORE: Mirrors the About.tsx approach exactly.
+  //  - One useEffect with [videoId] as dependency
+  //  - Destroys old player, creates fresh player each time videoId changes
+  //  - No separate "load video" effect, no playerReady ref
+  // ────────────────────────────────────────────────────────────────
   useEffect(() => {
-    // Prevent double-init from React 18 strict mode
-    if (initStarted.current) return;
-    initStarted.current = true;
+    if (!videoId) return;
 
-    const firstVideoId = extractVideoId(musicPlaylist[0]?.url ?? '');
+    // Tear down any existing player first
+    if (playerRef.current?.destroy) {
+      playerRef.current.destroy();
+      playerRef.current = null;
+    }
 
-    const createPlayer = () => {
-      // If there's already a player, don't create another
-      if (playerRef.current) return;
+    const initPlayer = () => {
+      if (!playerContainerRef.current) return;
 
-      const container = document.getElementById(PLAYER_CONTAINER_ID);
-      if (!container) return;
-
-      playerRef.current = new window.YT.Player(PLAYER_CONTAINER_ID, {
-        videoId: firstVideoId ?? '',
+      playerRef.current = new window.YT.Player(playerContainerRef.current, {
+        videoId,
         playerVars: {
           autoplay: 0,
           controls: 0,
           modestbranding: 1,
           rel: 0,
-          enablejsapi: 1,
           origin: window.location.origin,
         },
         events: {
-          onReady: (e: any) => {
-            playerReady.current = true;
-            setPlayerLoaded(true);
-            e.target.setVolume(80);
-            console.log('[MusicButton] Player ready, video:', firstVideoId);
-          },
           onStateChange: (e: any) => {
-            const state = e.data;
-            if (state === window.YT.PlayerState.PLAYING) {
+            if (e.data === window.YT.PlayerState.PLAYING) {
               setIsPlaying(true);
               startProgress();
-            } else if (state === window.YT.PlayerState.PAUSED) {
+            } else if (e.data === window.YT.PlayerState.PAUSED) {
               setIsPlaying(false);
               stopProgress();
-            } else if (state === window.YT.PlayerState.ENDED) {
+            } else if (e.data === window.YT.PlayerState.ENDED) {
               setIsPlaying(false);
               stopProgress();
               goNext();
             }
           },
           onError: (e: any) => {
-            console.error('[MusicButton] YouTube Error Code:', e.data);
-            if (e.data === 101 || e.data === 150) {
-              console.warn(`Video "${musicPlaylist[0]?.title}" restricts embedded playback.`);
-            }
+            console.error('[MusicButton] YT error:', e.data);
             setIsPlaying(false);
             stopProgress();
           },
@@ -137,15 +122,9 @@ export default function MusicButton() {
     };
 
     if (window.YT?.Player) {
-      createPlayer();
+      initPlayer();
     } else {
-      // Chain onto existing callback if About.tsx already set one
-      const existingCallback = window.onYouTubeIframeAPIReady;
-      window.onYouTubeIframeAPIReady = () => {
-        existingCallback?.();
-        createPlayer();
-      };
-
+      window.onYouTubeIframeAPIReady = () => initPlayer();
       if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
         const s = document.createElement('script');
         s.src = 'https://www.youtube.com/iframe_api';
@@ -155,43 +134,23 @@ export default function MusicButton() {
 
     return () => {
       stopProgress();
-      // Don't destroy on strict-mode unmount — we guard with initStarted instead
+      if (playerRef.current?.destroy) {
+        playerRef.current.destroy();
+        playerRef.current = null;
+      }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [videoId]);
 
-  // ── Load new video when currentIndex changes ─────────────────
-  useEffect(() => {
-    const p = playerRef.current;
-    if (!p || !playerReady.current) return;
-
-    const newId = extractVideoId(musicPlaylist[currentIndex]?.url ?? '');
-    if (!newId) return;
-
-    // loadVideoById auto-plays; cueVideoById does not
-    if (typeof p.loadVideoById === 'function') {
-      console.log('[MusicButton] Loading video:', newId, 'for track:', currentIndex);
-      p.loadVideoById(newId);
-      setProgress(0);
-      setDuration(0);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentIndex]);
-
+  // ── Controls — same pattern as About.tsx toggleSong ──
   const togglePlay = () => {
-    const p = playerRef.current;
-    if (!p || !playerReady.current) {
-      console.warn('[MusicButton] togglePlay called but player not ready');
-      return;
-    }
-    try {
-      if (isPlaying) {
-        p.pauseVideo();
-      } else {
-        p.playVideo();
-      }
-    } catch (err) {
-      console.error('[MusicButton] togglePlay error:', err);
+    if (!playerRef.current) return;
+    if (isPlaying) {
+      playerRef.current.pauseVideo();
+      setIsPlaying(false);
+    } else {
+      playerRef.current.playVideo();
+      setIsPlaying(true);
     }
   };
 
@@ -199,7 +158,7 @@ export default function MusicButton() {
 
   const seek = (e: React.MouseEvent<HTMLDivElement>) => {
     const p = playerRef.current;
-    if (!p || !playerReady.current || duration === 0) return;
+    if (!p || duration === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     if (typeof p.seekTo === 'function') {
@@ -214,12 +173,12 @@ export default function MusicButton() {
     const v = Math.round(Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * 100);
     setVolume(v);
     setMuted(false);
-    if (p && playerReady.current && typeof p.unMute === 'function') { p.unMute(); p.setVolume(v); }
+    if (p && typeof p.unMute === 'function') { p.unMute(); p.setVolume(v); }
   };
 
   const toggleMute = () => {
     const p = playerRef.current;
-    if (!p || !playerReady.current) return;
+    if (!p) return;
     if (muted) { p.unMute(); p.setVolume(volume); }
     else p.mute();
     setMuted(!muted);
@@ -229,22 +188,23 @@ export default function MusicButton() {
 
   return (
     <>
-      {/* Hidden YT player — use a stable ID so YouTube can always find the element */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'fixed',
-          width: 1,
-          height: 1,
-          opacity: 0,
-          pointerEvents: 'none',
-          bottom: 0,
-          left: 0,
-          zIndex: -1,
-        }}
-      >
-        <div id={PLAYER_CONTAINER_ID} />
-      </div>
+      {/* Hidden YT player — exact same approach as About.tsx */}
+      {videoId && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'fixed',
+            width: '1px',
+            height: '1px',
+            opacity: 0,
+            pointerEvents: 'none',
+            bottom: 0,
+            left: 0,
+          }}
+        >
+          <div ref={playerContainerRef} />
+        </div>
+      )}
 
       {/* Fullscreen overlay */}
       <AnimatePresence>
