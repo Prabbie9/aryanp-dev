@@ -4,6 +4,8 @@ import { siteConfig } from '@/content';
 import './globals.css';
 import {Space_Grotesk, DM_Sans} from 'next/font/google'
 import EasterEgg from '@/components/EasterEgg';
+import MusicButton from '@/components/MusicButton';
+
 
 export const metadata: Metadata = {
   title: siteConfig.siteTitle,
@@ -62,6 +64,7 @@ export default function RootLayout({
           <EasterEgg />
           {/* Film grain overlay — the subtle texture that makes everything feel premium */}
           <div className="grain-overlay" aria-hidden="true" />
+          <MusicButton />
           {children}
         </ThemeProvider>
       </body>

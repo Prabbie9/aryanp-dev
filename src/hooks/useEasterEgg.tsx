@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
 
-const TRIGGERS = ['aryan', 'prabhudesai', 'prabs'];
+const TRIGGERS = ['aryan', 'prabhudesai', 'prabs','claude'];
 
 export function useEasterEgg() {
   const bufferRef = useRef('');

@@ -362,3 +362,12 @@ export const customPages = [
   },
 ];
 
+export const musicPlaylist = [
+  {
+    title: 'Aakhri Ishq',
+    artist: 'Shashwat S, Jubin N, Irshad K',
+    url: 'https://www.youtube.com/watch?v=9W00iOJ6oPg&list=RD9W00iOJ6oPg&start_radio=1',
+    thumbnail: '', // optional: paste a thumbnail image URL
+  },
+  // add as many as you want
+];
