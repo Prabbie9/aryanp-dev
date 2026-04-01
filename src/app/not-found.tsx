@@ -21,7 +21,9 @@ export default function NotFound() {
 
   // Generate random food position
   const spawnFood = useCallback((currentSnake: { x: number, y: number }[]) => {
-    let newFood;
+    // THE FIX: Explicitly typing the object so Vercel's strict build passes
+    let newFood: { x: number; y: number }; 
+    
     while (true) {
       newFood = {
         x: Math.floor(Math.random() * GRID_SIZE),
