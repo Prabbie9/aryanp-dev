@@ -367,14 +367,14 @@ export const musicPlaylist = [
     title: 'Aakhri Ishq',
     artist: 'Shashwat Sachdev',
     url: 'https://img.youtube.com/vi/9W00iOJ6oPg/maxresdefault.jpg',
-    thumbnail: '', // optional: paste a thumbnail image URL
+    thumbnail: 'https://img.youtube.com/vi/9W00iOJ6oPg/maxresdefault.jpg'
   },
   // add as many as you want
   {
     title: 'Hum Pyaar Karne Wale',
     artist: 'Shashwat Sachdev',
     url: 'https://www.youtube.com/watch?v=OVHkruv-dg8',
-    thumbnail: 'https://www.youtube.com/watch?v=OVHkruv-dg8', 
+    thumbnail: 'https://img.youtube.com/vi/OVHkruv-dg8/maxresdefault.jpg', 
   },
   {
     title: 'Phir Se',

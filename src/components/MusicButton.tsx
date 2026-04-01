@@ -247,7 +247,7 @@ export default function MusicButton() {
                   }}
                 >
                   {song?.thumbnail
-                    ? <img src={song.thumbnail} alt={song.title} className="w-full h-full object-cover rounded-3xl" />
+                    ? <img src={song.thumbnail} alt={song.title} className="w-full h-full object-contain rounded-3xl" />
                     : <Music2 size={64} style={{ color: 'var(--text-subtle)' }} />
                   }
                 </motion.div>
