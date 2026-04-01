@@ -92,6 +92,10 @@ export default function MusicButton() {
           onReady: (e: any) => {
             playerReady.current = true;
             e.target.setVolume(80);
+            const firstId = extractVideoId(musicPlaylist[0]?.url ?? '');
+            if (firstId) {
+            e.target.cueVideoById(firstId); // cue, not load — so it doesn't autoplay
+            }
           },
           onStateChange: (e: any) => {
             if (e.data === window.YT.PlayerState.PLAYING) { setIsPlaying(true); startProgress(); }

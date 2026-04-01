@@ -373,7 +373,7 @@ export const musicPlaylist = [
   {
     title: 'Lofi Study Beats',
     artist: 'Lofi Girl',
-    url: 'https://www.youtube.com/watch?v=jfKfPfyJRdk', // Lofi Girl Stream (Usually allows embeds)
+    url: 'https://www.youtube.com/watch?v=7NOSDKb0HlU', // Lofi Girl Stream (Usually allows embeds)
     thumbnail: 'https://img.youtube.com/vi/jfKfPfyJRdk/maxresdefault.jpg', 
   },
 ];
