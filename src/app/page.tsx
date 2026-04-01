@@ -16,8 +16,8 @@ export default function Home() {
       <About />
       <Projects />
       <Academics />
-      <BlogSection />
       <Resume />
+      <BlogSection />
       <Contact />
       <Footer />
     </main>
