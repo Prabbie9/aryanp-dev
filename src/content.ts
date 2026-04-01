@@ -365,16 +365,28 @@ export const customPages = [
 export const musicPlaylist = [
   {
     title: 'Aakhri Ishq',
-    artist: 'Shashwat S, Jubin N, Irshad K',
-    url: 'https://www.youtube.com/watch?v=9W00iOJ6oPg&list=RD9W00iOJ6oPg&start_radio=1',
+    artist: 'Shashwat Sachdev',
+    url: 'https://img.youtube.com/vi/9W00iOJ6oPg/maxresdefault.jpg',
     thumbnail: '', // optional: paste a thumbnail image URL
   },
   // add as many as you want
   {
-    title: 'Lofi Study Beats',
-    artist: 'Lofi Girl',
-    url: 'https://www.youtube.com/watch?v=7NOSDKb0HlU', // Lofi Girl Stream (Usually allows embeds)
-    thumbnail: 'https://img.youtube.com/vi/jfKfPfyJRdk/maxresdefault.jpg', 
+    title: 'Hum Pyaar Karne Wale',
+    artist: 'Shashwat Sachdev',
+    url: 'https://www.youtube.com/watch?v=OVHkruv-dg8',
+    thumbnail: 'https://www.youtube.com/watch?v=OVHkruv-dg8', 
+  },
+  {
+    title: 'Phir Se',
+    artist: 'Shashwat Sachdev',
+    url: 'https://www.youtube.com/watch?v=Go4GQQRwEc8&list=RDGo4GQQRwEc8&start_radio=1',
+    thumbnail: 'https://img.youtube.com/vi/Go4GQQRwEc8/maxresdefault.jpg',
+  },
+  {
+    title: 'Let Her Go',
+    artist: 'Passenger, Ed Sheeran',
+    url: 'https://www.youtube.com/watch?v=HTcL9WkB_wg&list=RDHTcL9WkB_wg&start_radio=1',
+    thumbnail: 'https://img.youtube.com/vi/HTcL9WkB_wg/maxresdefault.jpg',
   },
 ];
 
