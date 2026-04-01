@@ -108,9 +108,9 @@ export default function ProjectsPage() {
                           <Github size={12} /> Source
                         </a>
                       )}
-                      {project.demoUrl && (
+                      {project.link && (
                         <a
-                          href={project.demoUrl}
+                          href={project.link}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-1.5 text-xs transition-opacity hover:opacity-60"
