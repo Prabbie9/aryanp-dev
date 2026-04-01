@@ -1,236 +1,237 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import Link from 'next/link';
-import { Terminal } from 'lucide-react';
 
-const GRID_SIZE = 20;
-const TILE_SIZE = 20; // 20x20 grid = 400x400 canvas
-const INITIAL_SNAKE = [{ x: 10, y: 10 }];
-const INITIAL_DIRECTION = { x: 0, y: -1 }; // Start moving up
+const CELL = 20;
+const COLS = 20;
+const ROWS = 20;
+const TICK = 120;
+
+type Point = { x: number; y: number };
+type Dir = { x: number; y: number };
+
+const rand = (n: number) => Math.floor(Math.random() * n);
+const newFood = (snake: Point[]): Point => {
+  let f: Point;
+  do { f = { x: rand(COLS), y: rand(ROWS) }; }
+  while (snake.some(s => s.x === f.x && s.y === f.y));
+  return f;
+};
 
 export default function NotFound() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [snake, setSnake] = useState(INITIAL_SNAKE);
-  const [direction, setDirection] = useState(INITIAL_DIRECTION);
-  const [food, setFood] = useState({ x: 15, y: 5 });
+  const stateRef = useRef({
+    snake: [{ x: 10, y: 10 }],
+    dir: { x: 1, y: 0 } as Dir,
+    nextDir: { x: 1, y: 0 } as Dir,
+    food: { x: 15, y: 10 } as Point,
+    score: 0,
+    dead: false,
+    started: false,
+  });
   const [score, setScore] = useState(0);
-  const [highScore, setHighScore] = useState(0);
-  const [gameOver, setGameOver] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
+  const [dead, setDead] = useState(false);
+  const [started, setStarted] = useState(false);
+  const tickRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Generate random food position
-  const spawnFood = useCallback((currentSnake: { x: number, y: number }[]) => {
-    // THE FIX: Explicitly typing the object so Vercel's strict build passes
-    let newFood: { x: number; y: number }; 
-    
-    while (true) {
-      newFood = {
-        x: Math.floor(Math.random() * GRID_SIZE),
-        y: Math.floor(Math.random() * GRID_SIZE),
-      };
-      // Make sure food doesn't spawn on the snake
-      const onSnake = currentSnake.some(segment => segment.x === newFood.x && segment.y === newFood.y);
-      if (!onSnake) break;
-    }
-    setFood(newFood);
-  }, []);
-
-  // Main Game Loop
-  useEffect(() => {
-    if (gameOver || isPaused) return;
-
-    const moveSnake = () => {
-      setSnake((prevSnake) => {
-        const head = prevSnake;
-        const newHead = { x: head.x + direction.x, y: head.y + direction.y };
-
-        // 1. Check Collisions (Walls)
-        if (
-          newHead.x < 0 || 
-          newHead.x >= GRID_SIZE || 
-          newHead.y < 0 || 
-          newHead.y >= GRID_SIZE
-        ) {
-          setGameOver(true);
-          return prevSnake;
-        }
-
-        // 2. Check Collisions (Self)
-        if (prevSnake.some(segment => segment.x === newHead.x && segment.y === newHead.y)) {
-          setGameOver(true);
-          return prevSnake;
-        }
-
-        const newSnake = [newHead, ...prevSnake];
-
-        // 3. Check Food
-        if (newHead.x === food.x && newHead.y === food.y) {
-          setScore(s => s + 10);
-          spawnFood(newSnake);
-          // Don't pop the tail so it grows
-        } else {
-          newSnake.pop(); // Remove tail if no food eaten
-        }
-
-        return newSnake;
-      });
-    };
-
-    const gameInterval = setInterval(moveSnake, 100); // Speed of the snake
-    return () => clearInterval(gameInterval);
-  }, [direction, food, gameOver, isPaused, spawnFood]);
-
-  // Keyboard Controls
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Prevent scrolling when using arrow keys
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
-        e.preventDefault();
-      }
-
-      if (gameOver && e.key === 'Enter') {
-        resetGame();
-        return;
-      }
-
-      setDirection((prev) => {
-        switch (e.key) {
-          case 'ArrowUp':
-          case 'w':
-            return prev.y === 1 ? prev : { x: 0, y: -1 };
-          case 'ArrowDown':
-          case 's':
-            return prev.y === -1 ? prev : { x: 0, y: 1 };
-          case 'ArrowLeft':
-          case 'a':
-            return prev.x === 1 ? prev : { x: -1, y: 0 };
-          case 'ArrowRight':
-          case 'd':
-            return prev.x === -1 ? prev : { x: 1, y: 0 };
-          case ' ':
-            setIsPaused(p => !p);
-            return prev;
-          default:
-            return prev;
-        }
-      });
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gameOver]);
-
-  // High Score Tracker
-  useEffect(() => {
-    if (gameOver && score > highScore) {
-      setHighScore(score);
-    }
-  }, [gameOver, score, highScore]);
-
-  // Render to Canvas
-  useEffect(() => {
+  const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    const s = stateRef.current;
 
-    // Clear background
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)'; // Matches dark mode cards
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Background
+    ctx.fillStyle = getComputedStyle(document.documentElement)
+      .getPropertyValue('--bg').trim() || '#080808';
+    ctx.fillRect(0, 0, COLS * CELL, ROWS * CELL);
 
-    // Draw Grid (Optional, makes it look more technical)
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-    for (let i = 0; i <= canvas.width; i += TILE_SIZE) {
-      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke();
+    // Grid dots
+    ctx.fillStyle = 'rgba(255,255,255,0.03)';
+    for (let x = 0; x < COLS; x++)
+      for (let y = 0; y < ROWS; y++)
+        ctx.fillRect(x * CELL + CELL / 2 - 1, y * CELL + CELL / 2 - 1, 2, 2);
+
+    // Food
+    const accent = getComputedStyle(document.documentElement)
+      .getPropertyValue('--accent').trim() || '#F0F0F0';
+    ctx.fillStyle = accent;
+    ctx.beginPath();
+    ctx.roundRect(
+      s.food.x * CELL + 4, s.food.y * CELL + 4,
+      CELL - 8, CELL - 8, 3
+    );
+    ctx.fill();
+
+    // Snake
+    s.snake.forEach((seg, i) => {
+      const alpha = i === 0 ? 1 : Math.max(0.25, 1 - i / s.snake.length);
+      ctx.fillStyle = i === 0 ? accent : `rgba(255,255,255,${alpha * 0.5})`;
+      ctx.beginPath();
+      ctx.roundRect(
+        seg.x * CELL + 2, seg.y * CELL + 2,
+        CELL - 4, CELL - 4,
+        i === 0 ? 5 : 3
+      );
+      ctx.fill();
+    });
+  }, []);
+
+  const tick = useCallback(() => {
+    const s = stateRef.current;
+    if (s.dead || !s.started) return;
+
+    s.dir = s.nextDir;
+    const head = { x: s.snake[0].x + s.dir.x, y: s.snake[0].y + s.dir.y };
+
+    // Wall collision
+    if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
+      s.dead = true; setDead(true); return;
+    }
+    // Self collision
+    if (s.snake.some(seg => seg.x === head.x && seg.y === head.y)) {
+      s.dead = true; setDead(true); return;
     }
 
-    // Draw Food
-    ctx.fillStyle = 'var(--accent)'; // Uses your site's accent color
-    ctx.shadowBlur = 10;
-    ctx.shadowColor = 'var(--accent)';
-    ctx.fillRect(food.x * TILE_SIZE + 2, food.y * TILE_SIZE + 2, TILE_SIZE - 4, TILE_SIZE - 4);
-    ctx.shadowBlur = 0; // Reset shadow
+    s.snake.unshift(head);
+    if (head.x === s.food.x && head.y === s.food.y) {
+      s.score++;
+      setScore(s.score);
+      s.food = newFood(s.snake);
+    } else {
+      s.snake.pop();
+    }
 
-    // Draw Snake
-    snake.forEach((segment, index) => {
-      // Head is white, body is gray
-      ctx.fillStyle = index === 0 ? '#ffffff' : '#a1a1aa';
-      ctx.fillRect(segment.x * TILE_SIZE + 1, segment.y * TILE_SIZE + 1, TILE_SIZE - 2, TILE_SIZE - 2);
-    });
+    draw();
+    tickRef.current = setTimeout(tick, TICK);
+  }, [draw]);
 
-  }, [snake, food]);
-
-  const resetGame = () => {
-    setSnake(INITIAL_SNAKE);
-    setDirection(INITIAL_DIRECTION);
+  const start = useCallback(() => {
+    const s = stateRef.current;
+    s.snake = [{ x: 10, y: 10 }];
+    s.dir = { x: 1, y: 0 };
+    s.nextDir = { x: 1, y: 0 };
+    s.food = { x: 15, y: 10 };
+    s.score = 0;
+    s.dead = false;
+    s.started = true;
     setScore(0);
-    setGameOver(false);
-    setIsPaused(false);
-    spawnFood(INITIAL_SNAKE);
+    setDead(false);
+    setStarted(true);
+    if (tickRef.current) clearTimeout(tickRef.current);
+    tickRef.current = setTimeout(tick, TICK);
+  }, [tick]);
+
+  useEffect(() => {
+    draw();
+    const onKey = (e: KeyboardEvent) => {
+      const s = stateRef.current;
+      if (!s.started || s.dead) { if (e.key === 'Enter' || e.key === ' ') start(); return; }
+      const map: Record<string, Dir> = {
+        ArrowUp: { x: 0, y: -1 }, w: { x: 0, y: -1 },
+        ArrowDown: { x: 0, y: 1 }, s: { x: 0, y: 1 },
+        ArrowLeft: { x: -1, y: 0 }, a: { x: -1, y: 0 },
+        ArrowRight: { x: 1, y: 0 }, d: { x: 1, y: 0 },
+      };
+      const nd = map[e.key];
+      if (!nd) return;
+      // Prevent reversing
+      if (nd.x !== -s.dir.x || nd.y !== -s.dir.y) s.nextDir = nd;
+      e.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      if (tickRef.current) clearTimeout(tickRef.current);
+    };
+  }, [draw, start]);
+
+  // Mobile swipe
+  const touchStart = useRef<Point | null>(null);
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStart.current) return;
+    const dx = e.changedTouches[0].clientX - touchStart.current.x;
+    const dy = e.changedTouches[0].clientY - touchStart.current.y;
+    const s = stateRef.current;
+    if (!s.started || s.dead) { start(); return; }
+    if (Math.abs(dx) > Math.abs(dy)) {
+      const nd = dx > 0 ? { x: 1, y: 0 } : { x: -1, y: 0 };
+      if (nd.x !== -s.dir.x) s.nextDir = nd;
+    } else {
+      const nd = dy > 0 ? { x: 0, y: 1 } : { x: 0, y: -1 };
+      if (nd.y !== -s.dir.y) s.nextDir = nd;
+    }
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
-      <div className="mb-8">
-        <p className="text-[var(--accent)] font-mono text-sm tracking-widest uppercase mb-4 flex items-center justify-center gap-2">
-          <Terminal size={16} /> Error 404
-        </p>
-        <h1 className="text-4xl md:text-5xl font-extrabold mb-4" style={{ fontFamily: 'var(--font-syne)' }}>
-          Page not found.
-        </h1>
-        <p className="text-[var(--text-muted)] max-w-md mx-auto">
-          You've ventured into the void. While you're here, you might as well play a round of Snake before heading back.
-        </p>
-      </div>
-
-      {/* The Game Console */}
-      <div className="relative bg-[var(--bg-card)] border border-[var(--border)] p-4 rounded-3xl shadow-2xl">
-        <div className="flex justify-between items-center mb-4 px-2 font-mono text-xs text-[var(--text-subtle)] uppercase tracking-wider">
-          <span>Score: <span className="text-white font-bold">{score}</span></span>
-          <span>High Score: <span className="text-[var(--accent)] font-bold">{highScore}</span></span>
-        </div>
-
-        <div className="relative rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-          <canvas 
-            ref={canvasRef} 
-            width={GRID_SIZE * TILE_SIZE} 
-            height={GRID_SIZE * TILE_SIZE}
-            className="block cursor-crosshair"
-          />
-
-          {/* Game Over / Paused Overlays */}
-          {(gameOver || isPaused) && (
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center">
-              <h3 className="text-2xl font-bold text-white mb-2 font-mono">
-                {gameOver ? 'GAME OVER' : 'PAUSED'}
-              </h3>
-              {gameOver && (
-                <button 
-                  onClick={resetGame}
-                  className="px-6 py-2 mt-2 bg-[var(--accent)] text-black font-bold text-sm uppercase tracking-widest rounded-full hover:scale-105 transition-transform"
-                >
-                  Play Again
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-
-        <p className="text-[10px] text-[var(--text-subtle)] font-mono text-center mt-4">
-          Use W A S D or Arrow Keys to move. Space to pause.
-        </p>
-      </div>
-
-      <div className="mt-12">
-        <Link 
-          href="/" 
-          className="text-sm font-semibold text-[var(--text-muted)] hover:text-white transition-colors border-b border-transparent hover:border-white pb-1"
+    <main
+      className="min-h-screen flex flex-col items-center justify-center gap-8 px-6"
+      style={{ background: 'var(--bg)', fontFamily: 'var(--font-mono)' }}
+    >
+      {/* Header */}
+      <div className="text-center">
+        <p
+          className="text-[11px] tracking-[0.2em] uppercase mb-3"
+          style={{ color: 'var(--text-subtle)' }}
         >
-          ← Back to Reality
-        </Link>
+          404 — Page not found
+        </p>
+        <h1
+          className="text-4xl md:text-5xl font-extrabold tracking-tight mb-2"
+          style={{ fontFamily: 'var(--font-syne)', color: 'var(--text)' }}
+        >
+          Lost? Play Snake.
+        </h1>
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          Score: <span style={{ color: 'var(--accent)' }}>{score}</span>
+        </p>
       </div>
-    </div>
+
+      {/* Canvas */}
+      <div className="relative" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+        <canvas
+          ref={canvasRef}
+          width={COLS * CELL}
+          height={ROWS * CELL}
+          className="rounded-2xl"
+          style={{ border: '1px solid var(--border)', display: 'block' }}
+        />
+
+        {/* Overlay — start / game over */}
+        {(!started || dead) && (
+          <div
+            className="absolute inset-0 flex flex-col items-center justify-center rounded-2xl gap-3"
+            style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+          >
+            {dead && (
+              <p className="text-2xl font-bold" style={{ color: 'var(--text)', fontFamily: 'var(--font-syne)' }}>
+                Score: {score}
+              </p>
+            )}
+            <button
+              onClick={start}
+              className="btn-primary"
+            >
+              {dead ? 'Play again' : 'Start game'}
+            </button>
+            <p className="text-xs" style={{ color: 'var(--text-subtle)' }}>
+              Arrow keys / WASD · Swipe on mobile
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Back home */}
+      <a
+        href="/"
+        className="text-sm transition-opacity hover:opacity-60"
+        style={{ color: 'var(--text-subtle)' }}
+      >
+        ← Back to home
+      </a>
+    </main>
   );
 }
