@@ -147,7 +147,7 @@ export default function MusicButton() {
 
   const togglePlay = () => {
     const p = getPlayer();
-    if (!p || !playerReady.current || typeof p.playVideo !== 'function') return;
+    if (!p) return;
     if (isPlaying) p.pauseVideo();
     else p.playVideo();
   };
