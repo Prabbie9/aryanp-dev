@@ -34,28 +34,36 @@ export default function MusicButton() {
   const [open, setOpen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [playerReady, setPlayerReady] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(80);
   const [muted, setMuted] = useState(false);
 
-  const playerRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
-  const readyRef = useRef(false);
+  const playerIdRef = useRef<string>('');
 
   const song = musicPlaylist[currentIndex];
   const videoId = song ? extractVideoId(song.url) : null;
 
+  // Always get the freshest player reference by ID
+  const getPlayer = () => {
+    if (playerIdRef.current && window.YT?.get) {
+      return window.YT.get(playerIdRef.current);
+    }
+    return null;
+  };
+
   const startProgress = useCallback(() => {
     if (progressInterval.current) clearInterval(progressInterval.current);
     progressInterval.current = setInterval(() => {
-      if (!playerRef.current?.getCurrentTime) return;
-      const t = playerRef.current.getCurrentTime();
-      const d = playerRef.current.getDuration();
+      const p = getPlayer();
+      if (!p) return;
+      const t = p.getCurrentTime?.() ?? 0;
+      const d = p.getDuration?.() ?? 0;
       if (d > 0) { setProgress(t / d); setDuration(d); }
     }, 500);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const stopProgress = useCallback(() => {
@@ -66,11 +74,11 @@ export default function MusicButton() {
     setCurrentIndex(i => (i + 1) % musicPlaylist.length);
   }, []);
 
-  // Create the YT player ONCE on mount — never destroy or remount it
+  // Create player once on mount
   useEffect(() => {
     const initPlayer = () => {
-      if (!containerRef.current || playerRef.current) return;
-      playerRef.current = new window.YT.Player(containerRef.current, {
+      if (!containerRef.current) return;
+      const player = new window.YT.Player(containerRef.current, {
         videoId: videoId ?? '',
         playerVars: {
           autoplay: 0,
@@ -82,10 +90,9 @@ export default function MusicButton() {
         },
         events: {
           onReady: (e: any) => {
-            readyRef.current = true;
-            playerRef.current = e.target;
-            setPlayerReady(true);
-            playerRef.current.setVolume(80);
+            // Store the iframe ID so we can always look up the player
+            playerIdRef.current = e.target.getIframe().id;
+            e.target.setVolume(80);
           },
           onStateChange: (e: any) => {
             if (e.data === 1) { setIsPlaying(true); startProgress(); }
@@ -113,40 +120,46 @@ export default function MusicButton() {
 
   // Load new video when song changes
   useEffect(() => {
-    if (!readyRef.current || !playerRef.current || !videoId) return;
-    playerRef.current.loadVideoById(videoId);
+    const p = getPlayer();
+    if (!p || !videoId) return;
+    p.loadVideoById(videoId);
     setProgress(0);
     setDuration(0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex, videoId]);
 
   const togglePlay = () => {
-    if (!readyRef.current || !playerRef.current) return;
-    if (isPlaying) playerRef.current.pauseVideo();
-    else playerRef.current.playVideo();
+    const p = getPlayer();
+    if (!p) return;
+    if (isPlaying) p.pauseVideo();
+    else p.playVideo();
   };
 
   const goPrev = () => setCurrentIndex(i => (i - 1 + musicPlaylist.length) % musicPlaylist.length);
 
   const seek = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!readyRef.current || duration === 0) return;
+    const p = getPlayer();
+    if (!p || duration === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    playerRef.current.seekTo(ratio * duration, true);
+    p.seekTo(ratio * duration, true);
     setProgress(ratio);
   };
 
   const changeVolume = (e: React.MouseEvent<HTMLDivElement>) => {
+    const p = getPlayer();
     const rect = e.currentTarget.getBoundingClientRect();
     const v = Math.round(Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * 100);
     setVolume(v);
     setMuted(false);
-    if (readyRef.current) { playerRef.current.unMute(); playerRef.current.setVolume(v); }
+    if (p) { p.unMute(); p.setVolume(v); }
   };
 
   const toggleMute = () => {
-    if (!readyRef.current) return;
-    if (muted) { playerRef.current.unMute(); playerRef.current.setVolume(volume); }
-    else playerRef.current.mute();
+    const p = getPlayer();
+    if (!p) return;
+    if (muted) { p.unMute(); p.setVolume(volume); }
+    else p.mute();
     setMuted(!muted);
   };
 
@@ -154,7 +167,7 @@ export default function MusicButton() {
 
   return (
     <>
-      {/* Hidden YT player — always mounted, never removed from DOM */}
+      {/* Hidden YT player — always in DOM */}
       <div
         aria-hidden="true"
         style={{ position: 'fixed', width: 1, height: 1, opacity: 0, pointerEvents: 'none', bottom: 0, left: 0, zIndex: -1 }}
@@ -338,7 +351,7 @@ export default function MusicButton() {
         )}
       </AnimatePresence>
 
-      {/* Floating button — hidden when player is open */}
+      {/* Floating button */}
       {!open && (
         <motion.button
           onClick={() => setOpen(true)}
