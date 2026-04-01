@@ -34,12 +34,7 @@ export default function Navigation() {
   if (href.startsWith('/')) {
     window.location.href = href;
   } else {
-    if (window.location.pathname !== '/') {
-      window.location.href = '/' + href;
-    } else {
-      const el = document.querySelector(href);
-      if (el) el.scrollIntoView({ behavior: 'smooth' });
-    }
+    window.location.href = '/' + href;
   }
 };
 
