@@ -53,7 +53,7 @@ export default function Navigation() {
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           {/* Logo */}
           <button
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            onClick={() => window.location.href = '/'}
             className="flex items-center gap-3 group"
             aria-label="Back to top"
           >
