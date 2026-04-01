@@ -81,8 +81,9 @@ export default function MusicButton() {
           origin: window.location.origin,
         },
         events: {
-          onReady: () => {
+          onReady: (e: any) => {
             readyRef.current = true;
+            playerRef.current = e.target;
             setPlayerReady(true);
             playerRef.current.setVolume(80);
           },
