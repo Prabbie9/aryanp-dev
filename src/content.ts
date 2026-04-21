@@ -63,7 +63,7 @@ export const academics = [
     semesters: [
       {
         name: 'Year 1 — 2025/26',
-        gpa: '85% Average SO FAR',
+        gpa: '91% Average SO FAR',
         visible: true,
         defaultOpen: false,
         courses: [
