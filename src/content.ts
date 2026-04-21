@@ -75,7 +75,7 @@ export const academics = [
           { name: 'Methods of Mathematical Modelling I',code: 'MA146', grade: 'TBC', CATS: 10, visible: true },
           { name: 'Methods of Mathematical Modelling II',code: 'MA144', grade: 'TBC', CATS: 10, visible: true },
           { name: 'Maths By Computer',code: 'MA124', grade: 'TBC', CATS: 10, visible: true },
-          { name: 'Programming for Scientists',code: 'MA117', grade: 'TBC', CATS: 10, visible: true },
+          { name: 'Programming for Scientists',code: 'MA117', grade: '97%', CATS: 10, visible: true },
           { name: 'Introduction to Probability',code: 'ST120', grade: 'TBC', CATS: 10, visible: true },
           { name: 'Statistical Laboratory',code: 'MA121', grade: 'TBC', CATS: 10, visible: true },
         ],
